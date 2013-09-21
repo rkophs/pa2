@@ -16,19 +16,19 @@
 
 int main(int argc, char *argv[]) {
 
+        int sd;
 	/* check command line args. */
 	if(argc<6) {
 		printf("usage : %s <server_port> <error rate> <random seed> <send_file> <send_log> \n", argv[0]);
 		exit(1);
 	}
-	printf("error rate : %f\n",atof(argv[2]));
 
 	/* Note: you must initialize the network library first before calling sendto_().  The arguments are the <errorrate> and <random seed> */
 	init_net_lib(atof(argv[2]), atoi(argv[3]));
 	printf("error rate : %f\n",atof(argv[2]));
 
 	/* socket creation */
-	if((sd=socket(**** CALL SOCKET() HERE TO CREATE A UDP SOCKET ****))<0){
+	if((sd=socket(PF_INET, SOCK_DGRAM, 0))<0){
 		printf("%s: cannot open socket \n",argv[0]);
 		exit(1);
 	}
@@ -39,8 +39,8 @@ int main(int argc, char *argv[]) {
 	servAddr.sin_family = AF_INET;                   //address family
 	servAddr.sin_port = htons(atoi(argv[1]));        //htons() sets the port # to network byte order
 	servAddr.sin_addr.s_addr = INADDR_ANY;           //supplies the IP address of the local machine
-	if(bind(**** CALL BIND() HERE TO BIND SOCKET TO PORT ****)<0){
-		printf("%s: cannot to bind port number %d \n",argv[0], argv[1]);
+	if(bind(sd, (struct sockaddr *) &servAddr, sizeof(servAddr))<0){
+		printf("%s: cannot to bind port number %s \n",argv[0], argv[1]);
 		exit(1); 
 	}
 
@@ -51,9 +51,10 @@ int main(int argc, char *argv[]) {
 	char recvmsg[100];
 	bzero(recvmsg,sizeof(recvmsg));
 	cliLen = sizeof(cliAddr);
-	nbytes = recvfrom(sd, &rcvmsg, sizeof (recvmsg), 0, (struct sockaddr *) &cliAddr, &cliLen);
-	
-	/* Respond using sendto_ in order to simulate dropped packets */
+	nbytes = recvfrom(sd, &recvmsg, sizeof (recvmsg), 0, (struct sockaddr *) &cliAddr, &cliLen);
+	printf("MSG: %s\n", recvmsg);
+        
+	/* Respond using send to_ in order to simulate dropped packets */
 	char response[] = "respond this";
 	nbytes = sendto_(sd, response, strlen(response),0, (struct sockaddr *) &cliAddr, sizeof(cliLen));
 }

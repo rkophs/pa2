@@ -6,4 +6,4 @@ clean:
 	rm -rf clientDir/client serverDir/server
 
 superclean:
-	rm -rf clientDir/ serverDir/
+	rm -rf clientDir/client serverDir/

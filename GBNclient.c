@@ -31,7 +31,7 @@ int main(int argc, char *argv[]) {
 
 	/* socket creation */
 	int sd;
-	if((sd = socket(**** CALL SOCKET() HERE TO CREATE A UDP SOCKET ****))<0)
+	if((sd = socket(PF_INET, SOCK_DGRAM,0))<0)
 	{
 		printf("%s: cannot create socket \n",argv[0]);
 		exit(1);

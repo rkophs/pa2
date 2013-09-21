@@ -12,7 +12,7 @@
 #include <string.h> /* memset() */
 #include <stdlib.h>
 #include <time.h>
-#include "sendto_h"
+#include "sendto_.h"
 
 int main(int argc, char *argv[]) {
 
@@ -28,8 +28,7 @@ int main(int argc, char *argv[]) {
 	printf("error rate : %f\n",atof(argv[2]));
 
 	/* socket creation */
-	if((sd=socket(**** CALL SOCKET() HERE TO CREATE A UDP SOCKET ****))<0)
-	{
+	if((sd=socket(**** CALL SOCKET() HERE TO CREATE A UDP SOCKET ****))<0){
 		printf("%s: cannot open socket \n",argv[0]);
 		exit(1);
 	}
@@ -40,8 +39,7 @@ int main(int argc, char *argv[]) {
 	servAddr.sin_family = AF_INET;                   //address family
 	servAddr.sin_port = htons(atoi(argv[1]));        //htons() sets the port # to network byte order
 	servAddr.sin_addr.s_addr = INADDR_ANY;           //supplies the IP address of the local machine
-	if(bind(**** CALL BIND() HERE TO BIND SOCKET TO PORT ****)<0)
-	{
+	if(bind(**** CALL BIND() HERE TO BIND SOCKET TO PORT ****)<0){
 		printf("%s: cannot to bind port number %d \n",argv[0], argv[1]);
 		exit(1); 
 	}

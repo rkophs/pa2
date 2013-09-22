@@ -15,6 +15,8 @@
 #include "sendto_.h"
 #include "fileManip_.h"
 
+#define MAXBUFFSIZE 1024
+
 int main(int argc, char *argv[]) {
 
     int sd;
@@ -46,19 +48,27 @@ int main(int argc, char *argv[]) {
     }
 
     /* Receive message from client */
-    struct sockaddr_in cliAddr;
-    unsigned int cliLen;
-    int nbytes;
-    char recvmsg[32768];
-     printf("size : %li\n", sizeof(recvmsg));
-    bzero(recvmsg, sizeof (recvmsg));
-    cliLen = sizeof (cliAddr);
-    printf("size : %li\n", sizeof(recvmsg));
-    nbytes = recvfrom(sd, &recvmsg, 32768, 0, (struct sockaddr *) &cliAddr, &cliLen);
-    printf("Received");
-    writeBuffer(argv[4], recvmsg, 1114448);
+    struct sockaddr_in client;
+    unsigned int cliLen = sizeof (client);
+    
+    char initials[100];
+    bzero(initials, sizeof (initials));
+
+    recvfrom(sd, initials, sizeof(initials), 0, (struct sockaddr *) &client, &cliLen);
+    char *token = strtok(initials, " ");
+    int fileSize = atoi(token);
+    printf("Received file size %i from client. Sending ACK...\n", fileSize);
+
     /* Respond using send to_ in order to simulate dropped packets */
-    char response[] = "respond this";
-    nbytes = sendto(sd, response, strlen(response), 0, (struct sockaddr *) &cliAddr, sizeof (cliLen));
+    char response[100];
+    strncpy(response, "OK\0", 3);
+    printf("size of response: %li\n", sizeof(response));
+    if(sendto(sd, response, strlen(response), 0, (struct sockaddr *) &client, sizeof (client)) < 1){
+        printf("Error sending ACK\n");
+        return 0;
+    }
+    
+    
+    //writeBuffer(argv[4], initials, 1114448);
 }
 

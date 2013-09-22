@@ -17,6 +17,8 @@
 #include "sendto_.h"
 #include "fileManip_.h"
 
+#define MAXBUFFSIZE 1024
+
 int main(int argc, char *argv[]) {
 
     /* check command line args. */
@@ -37,28 +39,50 @@ int main(int argc, char *argv[]) {
     }
 
     /* get server IP address (input must be IP address, not DNS name) */
-    struct sockaddr_in remoteServAddr;
-    bzero(&remoteServAddr, sizeof (remoteServAddr)); //zero the struct
-    remoteServAddr.sin_family = AF_INET; //address family
-    remoteServAddr.sin_port = htons(atoi(argv[2])); //sets port to network byte order
-    remoteServAddr.sin_addr.s_addr = inet_addr(argv[1]); //sets remote IP address
+    struct sockaddr_in remote;
+    bzero(&remote, sizeof (remote)); //zero the struct
+    remote.sin_family = AF_INET; //address family
+    remote.sin_port = htons(atoi(argv[2])); //sets port to network byte order
+    remote.sin_addr.s_addr = inet_addr(argv[1]); //sets remote IP address
     printf("%s: sending file '%s' to '%s:%s' \n", argv[0], argv[5], argv[1], argv[2]);
 
     int fileSize;
-    if((fileSize = getFileSize(argv[5])) < 0){
+    if ((fileSize = getFileSize(argv[5])) < 0) {
         return 1;
     }
-    printf("fileSize: %i\n", fileSize);
+    char initials[100];
+    char fileSizeStr[16];
+    sprintf(fileSizeStr, "%d", fileSize);
+    strcat(initials, fileSizeStr);
+
+    //send put <filename> <size> message to server:
+    if (sendto(sd, initials, sizeof (initials), 0, (struct sockaddr *) &remote, sizeof(remote)) < 0) {
+        printf("Unable to send file size to server\n");
+        return 1;
+    }
+    printf("File size %i sent to %s:%s, awaiting ACK...\n", fileSize, argv[1], argv[2]);
+        printf("size of initials %li", sizeof(initials));
+
+    bzero(initials, sizeof(initials));
+    unsigned int remote_length = sizeof(remote);
+    printf("size of initials %li", sizeof(initials));
+    recvfrom(sd, initials, sizeof(initials), 0, (struct sockaddr *) &remote, &remote_length);
+    char *token = strtok(initials, " ");
+    if(strcmp(token, "OK\0")){
+        //resend
+        return 1;
+    }
+    printf("...ACK received\n");
+    
     void *buffer;
-    if((buffer = bufferize(argv[5])) == NULL){
+    if ((buffer = bufferize(argv[5])) == NULL) {
         return 1;
     }
-    
+
     writeBuffer("test.jpg", buffer, fileSize);
-    
+
     /* Call sendto_ in order to simulate dropped packets */
-    int nbytes;
-    nbytes = sendto(sd, buffer, fileSize, 0, (struct sockaddr *) &remoteServAddr, sizeof (remoteServAddr));
-    
+    sendto(sd, buffer, fileSize, 0, (struct sockaddr *) &remote, sizeof(remote));
+
     return 0;
 }

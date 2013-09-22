@@ -4,6 +4,7 @@
 
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
@@ -66,11 +67,22 @@ int main(int argc, char *argv[]) {
     struct sockaddr_in remote;
     unsigned int remote_length = sizeof (remote);
     
-    char ACK[100];
-    //bzero(ACK, sizeof(ACK));
-    //printf("size of initials %li", sizeof(ACK));
-    recvfrom(sd, ACK, 100, 0, (struct sockaddr *) &remote, &remote_length);
-    printf("...ACK received\n");
+    char ack[100];
+    bzero(ack, sizeof(ack));
+    
+    struct timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = 50000; //50 ms
+    if(setsockopt(sd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0){
+        printf("Error setting timeout\n");
+    }
+    if(recvfrom(sd, ack, 100, 0, (struct sockaddr *) &remote, &remote_length)<0){
+        printf("timeout reached\n");
+        return 0;
+    }
+    if(!strcmp(ack, "OK\0")){
+        printf("...ACK received.\n", ack);
+    }
     
     void *buffer;
     if ((buffer = bufferize(argv[5])) == NULL) {

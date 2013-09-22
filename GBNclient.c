@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include "sendto_.h"
 #include "fileManip_.h"
+#include "socket_.h"
 
 #define MAXBUFFSIZE 1024
 
@@ -25,10 +26,9 @@ int main(int argc, char *argv[]) {
     /* check command line args. */
     if (argc < 7) {
         printf("usage : %s <server_ip> <server_port> <error rate> <random seed> <send_file> <send_log> \n", argv[0]);
-        exit(1);
+        return 1;
     }
 
-    /* Note: you must initialize the network library first before calling sendto_().  The arguments are the <errorrate> and <random seed> */
     init_net_lib(atof(argv[3]), atoi(argv[4]));
     printf("error rate : %f\n", atof(argv[3]));
 
@@ -36,54 +36,63 @@ int main(int argc, char *argv[]) {
     int sd;
     if ((sd = socket(PF_INET, SOCK_DGRAM, 0)) < 0) {
         printf("%s: cannot create socket \n", argv[0]);
-        exit(1);
+        return 1;
     }
 
     /* get server IP address (input must be IP address, not DNS name) */
-    struct sockaddr_in clientAddr;
-    bzero(&clientAddr, sizeof (clientAddr)); //zero the struct
-    clientAddr.sin_family = AF_INET; //address family
-    clientAddr.sin_port = htons(atoi(argv[2])); //sets port to network byte order
-    clientAddr.sin_addr.s_addr = inet_addr(argv[1]); //sets remote IP address
+    struct sockaddr_in server = buildLocalAddr(argv[1], argv[2]);
+    unsigned int serverLen = sizeof (server);
     printf("%s: sending file '%s' to '%s:%s' \n", argv[0], argv[5], argv[1], argv[2]);
 
-    int fileSize;
-    if ((fileSize = getFileSize(argv[5])) < 0) {
-        return 1;
-    }
-    char initials[100];
-    char fileSizeStr[16];
-    sprintf(fileSizeStr, "%d", fileSize);
-    strcat(initials, fileSizeStr);
-
-    //send put <filename> <size> message to server:
-    if (sendto(sd, initials, sizeof (initials), 0, (struct sockaddr *) &clientAddr, sizeof(clientAddr)) < 0) {
-        printf("Unable to send file size to server\n");
-        return 1;
-    }
-    printf("File size %i sent to %s:%s, awaiting ACK...\n", fileSize, argv[1], argv[2]);
-
-    /* Receive message from client */
-    struct sockaddr_in remote;
-    unsigned int remote_length = sizeof (remote);
-    
-    char ack[100];
-    bzero(ack, sizeof(ack));
-    
+    /* set timeout for recvfrom function*/
     struct timeval tv;
     tv.tv_sec = 0;
     tv.tv_usec = 50000; //50 ms
-    if(setsockopt(sd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0){
+    if (setsockopt(sd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof (tv)) < 0) {
         printf("Error setting timeout\n");
-    }
-    if(recvfrom(sd, ack, 100, 0, (struct sockaddr *) &remote, &remote_length)<0){
-        printf("timeout reached\n");
-        return 0;
-    }
-    if(!strcmp(ack, "OK\0")){
-        printf("...ACK received.\n", ack);
+        return 1;
     }
     
+    /* get size of file to send to server*/
+    int fileSize;
+    if ((fileSize = getFileSize(argv[5])) < 0)
+        return 1;
+    char fileSizeStr[16];
+    bzero(fileSizeStr, sizeof(fileSizeStr));
+    sprintf(fileSizeStr, "%d", fileSize);
+    char SWS[] = "9";
+    
+    char initials[100];
+    bzero(initials, sizeof (initials));
+    strncpy(initials, "fs ", 3);
+    strcat(initials, fileSizeStr);
+    strcat(initials, " ");
+    strcat(initials, SWS);
+    printf("inits: %s", initials);
+    
+    char ack[16];
+    printf("File size %i sending to %s:%s, awaiting ACK...\n", fileSize, argv[1], argv[2]);
+
+    int sendingHeader = 1;
+    while (sendingHeader) {
+        //send put <filename> <size> message to server:
+        if (sendto(sd, initials, sizeof (initials), 0, (struct sockaddr *) &server, serverLen) < 0) {
+            printf("Unable to send file size to server\n");
+            return 1;
+        }
+
+        bzero(ack, sizeof (ack));
+        if (recvfrom(sd, ack, sizeof(ack), 0, (struct sockaddr *) &server, &serverLen) < 0) {
+            printf("timeout #%i\n", sendingHeader);
+            sendingHeader++;
+        }
+        if (!strcmp(ack, "OK\0")) {
+            printf("...ACK received.\n", ack);
+            sendingHeader = 0;
+        }
+    }
+    
+
     void *buffer;
     if ((buffer = bufferize(argv[5])) == NULL) {
         return 1;

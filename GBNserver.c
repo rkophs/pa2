@@ -61,8 +61,12 @@ int main(int argc, char *argv[]) {
 
     /* Respond using send to_ in order to simulate dropped packets */
     char response[100];
-    strncpy(response, "OK\0", 100);
-    sendto(sd, response, sizeof(response), 0, (struct sockaddr *) &client, sizeof (cliLen));
+    strncpy(response, "OK\0", 3);
+    printf("size of response: %li\n", sizeof(response));
+    if(sendto(sd, response, strlen(response), 0, (struct sockaddr *) &client, sizeof (client)) < 1){
+        printf("Error sending ACK\n");
+        return 0;
+    }
     
     
     //writeBuffer(argv[4], initials, 1114448);

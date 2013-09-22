@@ -1,6 +1,6 @@
 all:
 	mkdir -p clientDir
-	cp ocean.jpg clientDir/ocean.jpg
+	cp -f ocean.jpg clientDir/ocean.jpg
 	mkdir -p serverDir
 	gcc GBNclient.c -o clientDir/client
 	gcc GBNserver.c -o serverDir/server

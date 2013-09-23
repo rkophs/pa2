@@ -20,3 +20,24 @@ struct sockaddr_in buildLocalAddr(char * ip, char * port){
     addr.sin_addr.s_addr = ip == NULL ?  INADDR_ANY : inet_addr(ip); //sets remote IP address
     return addr;
 }
+
+void insertNum(char * buffer, int num, int leastSignificantPos){
+    if(num == 0){
+        buffer[leastSignificantPos] = 48;
+        return;
+    }
+    int tmp = num;
+    int i = leastSignificantPos;
+    while(tmp){
+        buffer[i] = tmp % 10 + 48;
+        tmp /= 10;
+        i--;
+    }
+}
+
+void mempnset(char *buffer, char mask, int pos, int len){
+    int i;
+    for(i = pos; i < pos + len; i++){
+        buffer[i] = mask;
+    }
+}

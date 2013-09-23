@@ -15,6 +15,7 @@
 #include "sendto_.h"
 #include "fileManip_.h"
 #include "socket_.h"
+#include "window_.h"
 
 #define MAXBUFFSIZE 1024
 

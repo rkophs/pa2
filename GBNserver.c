@@ -54,10 +54,9 @@ int main(int argc, char *argv[]) {
         bzero(initials, sizeof (initials));
         recvfrom(sd, initials, sizeof (initials), 0, (struct sockaddr *) &client, &clientLen);
         char *token1 = strtok(initials, " ");
-        char *token2 = strtok(NULL, " ");
-        char *token3 = strtok(NULL, " ");
-        printf("1 %s 2 %s 3 %s\n",token1, token2, token3);
         if (!strcmp(token1, "fs\0")) {
+            char *token2 = strtok(NULL, " "); //filesize
+            char *token3 = strtok(NULL, " "); //SWS
             int fileSize = atoi(token2);
             int SWS = atoi(token3);
             printf("Received file size %i and SWS %i from client #%i times. Sending ACK...\n", fileSize, SWS, rcvHead);
@@ -67,7 +66,14 @@ int main(int argc, char *argv[]) {
                 printf("Error sending ACK\n");
                 return 0;
             }
-        } else {
+        } 
+        
+        if(!strcmp(token1, "head\0")){
+            int seq = atoi(strtok(NULL, " ")); //seq#
+            int filesize = atoi(strtok(NULL, " "));
+            
+            printf("Received %i bytes of %i total bytes in Seq# %i. Sending ACK <%i><%i>...\n", MAXBUFFSIZE, filesize, seq, seq, 6);
+            
             rcvHead = 0;
         }
     }

@@ -52,56 +52,50 @@ int main(int argc, char *argv[]) {
         printf("Error setting timeout\n");
         return 1;
     }
-    
+
     /* get size of file to send to server*/
     int fileSize;
     if ((fileSize = getFileSize(argv[5])) < 0)
         return 1;
-    char fileSizeStr[16];
-    bzero(fileSizeStr, sizeof(fileSizeStr));
-    sprintf(fileSizeStr, "%d", fileSize);
-    char SWS[] = "9";
-    
-    char initials[100];
-    bzero(initials, sizeof (initials));
-    strncpy(initials, "fs ", 3);
-    strcat(initials, fileSizeStr);
-    strcat(initials, " ");
-    strcat(initials, SWS);
-    printf("inits: %s", initials);
-    
-    char ack[16];
-    printf("File size %i sending to %s:%s, awaiting ACK...\n", fileSize, argv[1], argv[2]);
 
-    int sendingHeader = 1;
-    while (sendingHeader) {
-        //send put <filename> <size> message to server:
-        if (sendto(sd, initials, sizeof (initials), 0, (struct sockaddr *) &server, serverLen) < 0) {
+    char header[32];
+    char buffer[MAXBUFFSIZE + sizeof (header)];
+    memset(header, ' ', sizeof (header));
+    header[31] = 0;
+    strncpy(header, "hdr ", 4);
+    insertNum(header, fileSize, 15);
+
+    char ack[32];
+    printf("File size %i sending to %s:%s\n", fileSize, argv[1], argv[2]);
+
+    int seqNum = 0;
+    int seqMax = fileSize / MAXBUFFSIZE + 1;
+    while (seqNum < seqMax) {
+        mempnset(header, ' ', 17, 12);
+        insertNum(header, seqNum, 28);
+        printf("header: %s\n", header);
+        bzero(buffer, sizeof (buffer));
+        strncpy(buffer, header, sizeof (header));
+        if (sendto_(sd, buffer, sizeof (buffer), 0, (struct sockaddr *) &server, serverLen) < 0) {
             printf("Unable to send file size to server\n");
-            return 1;
         }
 
         bzero(ack, sizeof (ack));
-        if (recvfrom(sd, ack, sizeof(ack), 0, (struct sockaddr *) &server, &serverLen) < 0) {
-            printf("timeout #%i\n", sendingHeader);
-            sendingHeader++;
+        if (recvfrom(sd, ack, sizeof (ack), 0, (struct sockaddr *) &server, &serverLen) < 0) {
+            printf("timeout #%i\n", seqNum);
         }
-        if (!strcmp(ack, "OK\0")) {
+        printf("ACK: %s\n", ack);
+        if (!strncmp(ack, "ACK", 3)) {
             printf("...ACK received.\n", ack);
-            sendingHeader = 0;
+            seqNum++;
         }
     }
-    
 
-    void *buffer;
-    if ((buffer = bufferize(argv[5])) == NULL) {
-        return 1;
+    mempnset(header, ' ', 17, 12);
+    insertNum(header, seqNum, 28);
+    if (sendto_(sd, header, sizeof (header), 0, (struct sockaddr *) &server, serverLen) < 0) {
+        printf("Unable to send file size to server\n");
     }
-
-    //writeBuffer("test.jpg", buffer, fileSize);
-
-    /* Call sendto_ in order to simulate dropped packets */
-    //sendto(sd, buffer, fileSize, 0, (struct sockaddr *) &clientAddr, sizeof(clientAddr));
 
     return 0;
 }

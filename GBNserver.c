@@ -46,29 +46,43 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-    char initials[100];
-    char ack[16];
+    char buffer[MAXBUFFSIZE + 32];
+    char ack[32];
     strncpy(ack, "OK\0", 3);
     int rcvHead = 1;
-    while (rcvHead) {
-        bzero(initials, sizeof (initials));
-        recvfrom(sd, initials, sizeof (initials), 0, (struct sockaddr *) &client, &clientLen);
-        char *token1 = strtok(initials, " ");
-        char *token2 = strtok(NULL, " ");
-        char *token3 = strtok(NULL, " ");
-        printf("1 %s 2 %s 3 %s\n",token1, token2, token3);
-        if (!strcmp(token1, "fs\0")) {
-            int fileSize = atoi(token2);
-            int SWS = atoi(token3);
-            printf("Received file size %i and SWS %i from client #%i times. Sending ACK...\n", fileSize, SWS, rcvHead);
-            rcvHead++;
-            /* Respond using send to_ in order to simulate dropped packets */
+    while (1) {
+        bzero(buffer, sizeof (buffer));
+        if(recvfrom(sd, buffer, sizeof (buffer), 0, (struct sockaddr *) &client, &clientLen) < 0){
+            //This timeout control is not set until the entire file has been written!
+            printf("Timeout occurred. Client terminated. Now server is terminating\n");
+            break;
+        }
+
+        if (!strcmp(strtok(buffer, " "), "hdr\0")) {
+            int filesize = atoi(strtok(NULL, " "));
+            int seq = atoi(strtok(NULL, " "));
+            if (seq * MAXBUFFSIZE >= filesize /*&& RWS == 0*/) {
+                printf("Seq# %i is beyond file scope\n", seq);
+                break;
+            } else if ((seq + 1) * MAXBUFFSIZE >= filesize /*&& RWS == 0*/) {
+                //last part of file is received
+                struct timeval tv;
+                tv.tv_sec = 0;
+                tv.tv_usec = 500000; //500 ms
+                if (setsockopt(sd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof (tv)) < 0) {
+                    printf("Error setting timeout\n");
+                }
+            }
+            printf("Received %i bytes of %i total bytes in Seq# %i. Sending ACK <%i><%i>...\n", MAXBUFFSIZE, filesize, seq, seq, 6);
+            memset(ack, ' ', sizeof (ack));
+            ack[31] = 0;
+            strcpy(ack, "ACK");
+            insertNum(ack, seq, 15);
+            insertNum(ack, 6, 28);
+
             if (sendto_(sd, ack, sizeof (ack), 0, (struct sockaddr *) &client, clientLen) < 1) {
                 printf("Error sending ACK\n");
-                return 0;
             }
-        } else {
-            rcvHead = 0;
         }
     }
 

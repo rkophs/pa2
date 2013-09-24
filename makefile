@@ -6,6 +6,8 @@ all:
 	mkdir -p serverDir
 	gcc GBNclient.c -o clientDir/client
 	gcc GBNserver.c -o serverDir/server
+	gcc test.c -o test
 
 clean:
 	rm -rf clientDir/ serverDir/
+	rm test

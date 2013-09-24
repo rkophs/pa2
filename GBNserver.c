@@ -18,6 +18,7 @@
 #include "window_.h"
 
 #define MAXBUFFSIZE 1024
+#define RWS 6
 
 int main(int argc, char *argv[]) {
 
@@ -47,11 +48,18 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
+    //Set up recv buffer and ACK response buffer
     char buffer[MAXBUFFSIZE + 32];
     char ack[32];
     strncpy(ack, "OK\0", 3);
-    int rcvHead = 1;
+    
+    //Instantiate window with N buffers of 1024 bytes:
+    struct window* rWin = windowInit(RWS, MAXBUFFSIZE);
+    char payload[MAXBUFFSIZE];
+    //Iterate through Synchronous connection:
     while (1) {
+        
+        //Wait for client to send data:
         bzero(buffer, sizeof (buffer));
         if(recvfrom(sd, buffer, sizeof (buffer), 0, (struct sockaddr *) &client, &clientLen) < 0){
             //This timeout control is not set until the entire file has been written!
@@ -59,10 +67,27 @@ int main(int argc, char *argv[]) {
             break;
         }
 
+        //If data buffer starts with hdr (which it always should):
         if (!strcmp(strtok(buffer, " "), "hdr\0")) {
-            int filesize = atoi(strtok(NULL, " "));
-            int seq = atoi(strtok(NULL, " "));
-            if (seq * MAXBUFFSIZE >= filesize /*&& RWS == 0*/) {
+            int filesize = atoi(strtok(NULL, " "));     //Parse file size
+            int seq = atoi(strtok(NULL, " "));          //Parse sequence #
+            
+            //Copy packet buffer into payload to pass to window:
+            int i;
+            for(i = 0; i < MAXBUFFSIZE; i++){
+                payload[i] = buffer[i+32];
+            }
+            insertSubBuffer(rWin, seq, payload, sizeof(payload));
+            
+            //If possible, write all buffers <= cumAck into file:
+            while(rWin->cumSeq > rWin->min){
+                char *left = shiftWindow(rWin); //Only truly shifts if appr.
+                //Write left to file here!!!
+                free(left);
+                left = NULL; //Must do so to avoid double freeing of mem.
+            }
+            
+            if (rWin->cumSeq >= filesize) {
                 printf("Seq# %i is beyond file scope\n", seq);
                 break;
             } else if ((seq + 1) * MAXBUFFSIZE >= filesize /*&& RWS == 0*/) {
@@ -87,6 +112,6 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    //writeBuffer(argv[4], initials, 1114448);
+    free(rWin);
 }
 

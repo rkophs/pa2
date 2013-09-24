@@ -8,6 +8,7 @@ struct subBuffer {
 
 //Window object:
 struct window {
+    int RWS;
     int size;                   //'N' elements in the window
     int cumSeq;                 //Sumulative ACK Seq
     int min;                    //Beginning element position of window
@@ -54,6 +55,7 @@ struct window *windowInit(int windowSize, int payloadSize) {
     }
 
     //Set window size, Cum ACK to -1, beginning window element Seq# to -1 and buffersize
+    tmp->RWS = windowSize;
     tmp->size = windowSize;
     tmp->cumSeq = -1;
     tmp->min = -1;
@@ -90,6 +92,7 @@ char* pullSubBuffer(struct window* buffer, int seq) {
         buffer->table[seq-min].buffer[i] = 0;
     }
     buffer->table[seq-min].seq = -1;
+    buffer->RWS++;
     
     return tmp;
 }
@@ -103,6 +106,7 @@ char *shiftWindow(struct window* buffer){
     //Pull out first element:
     char *tmp;
     if((tmp = pullSubBuffer(buffer, buffer->min)) == NULL){
+        free(tmp);
         return NULL;
     } else { //If 1st element was present and popped, now 1st element is empty:
         int i;
@@ -139,7 +143,7 @@ void insertSubBuffer(struct window* buffer, int seq, char* payload, int payLoadS
     int min = buffer->min;
     
     //Move payload into appropriate spot if within window:
-    if (seq >= min && seq < (min + size)) {
+    if (seq >= min && seq < (min + size) && buffer->table[seq-min].seq != seq) {
         buffer->table[seq-min].seq = seq;
         int i;
         for (i = 0; i < payLoadSize; i++) {
@@ -152,6 +156,7 @@ void insertSubBuffer(struct window* buffer, int seq, char* payload, int payLoadS
                 buffer->cumSeq++;
             }
         }
+        buffer->RWS--;
     }
 }
 

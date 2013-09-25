@@ -78,10 +78,10 @@ int main(int argc, char *argv[]) {
                 payload[i] = buffer[i+32];
             }
             insertSubBuffer(rWin, seq, payload, sizeof(payload));
-            
+            //printf("BUFF: MIN %i, CUM %i, RWS %i\n", rWin->min, rWin->cumSeq, rWin->RWS);
             //If possible, write all buffers <= cumAck into file:
             while(rWin->cumSeq > rWin->min){
-                char *left = shiftWindow(rWin); //Only truly shifts if appr.
+                char *left = recvShiftWindow(rWin); //Only truly shifts if appr.
                 //Write left to file here!!!
                 free(left);
                 left = NULL; //Must do so to avoid double freeing of mem.
@@ -102,9 +102,9 @@ int main(int argc, char *argv[]) {
             printf("Received %i bytes of %i total bytes in Seq# %i. Sending ACK <%i><%i>...\n", MAXBUFFSIZE, filesize, seq, seq, 6);
             memset(ack, ' ', sizeof (ack));
             ack[31] = 0;
-            strcpy(ack, "ACK");
+            strncpy(ack, "ACK", 3);
             insertNum(ack, seq, 15);
-            insertNum(ack, 6, 28);
+            insertNum(ack, rWin->rws, 28);
 
             if (sendto_(sd, ack, sizeof (ack), 0, (struct sockaddr *) &client, clientLen) < 1) {
                 printf("Error sending ACK\n");

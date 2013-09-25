@@ -18,8 +18,10 @@
 #include "sendto_.h"
 #include "fileManip_.h"
 #include "socket_.h"
+#include "window_.h"
 
 #define MAXBUFFSIZE 1024
+#define SWS 9
 
 int main(int argc, char *argv[]) {
 
@@ -68,34 +70,51 @@ int main(int argc, char *argv[]) {
     char ack[32];
     printf("File size %i sending to %s:%s\n", fileSize, argv[1], argv[2]);
 
-    int seqNum = 0;
-    int seqMax = fileSize / MAXBUFFSIZE + 1;
-    while (seqNum < seqMax) {
-        mempnset(header, ' ', 17, 12);
-        insertNum(header, seqNum, 28);
-        printf("header: %s\n", header);
-        bzero(buffer, sizeof (buffer));
-        strncpy(buffer, header, sizeof (header));
-        if (sendto_(sd, buffer, sizeof (buffer), 0, (struct sockaddr *) &server, serverLen) < 0) {
-            printf("Unable to send file size to server\n");
+    int seqMax = 20 * fileSize / MAXBUFFSIZE + 1;
+
+    //Initialize window and populate with data;
+    struct window *sWin = windowInit(SWS, MAXBUFFSIZE);
+    int i;
+    for (i = 0; i < SWS; i++) {
+        insertSubBuffer(sWin, i, "a", 1);
+    }
+
+    int cumAck = -1;
+    while (cumAck < seqMax) {
+        //Slide window:
+        while (sWin->min <= cumAck) {
+            sendShiftWindow(sWin, sWin->min + SWS, "a", 1);
+        }
+        
+        //Send each packet in window:
+        for (i = 0; i < SWS; i++) {
+            mempnset(header, ' ', 17, 12);
+            insertNum(header, sWin->min + i, 28);
+            printf("header [%i]: %s\n", sWin->min + i, header);
+            bzero(buffer, sizeof (buffer));
+            strncpy(buffer, header, sizeof (header));
+            if (sendto_(sd, buffer, sizeof (buffer), 0, (struct sockaddr *) &server, serverLen) < 0) {
+                printf("Unable to send file size to server\n");
+            }
         }
 
-        bzero(ack, sizeof (ack));
-        if (recvfrom(sd, ack, sizeof (ack), 0, (struct sockaddr *) &server, &serverLen) < 0) {
-            printf("timeout #%i\n", seqNum);
-        }
-        printf("ACK: %s\n", ack);
-        if (!strncmp(ack, "ACK", 3)) {
-            printf("...ACK received.\n", ack);
-            seqNum++;
+        //Now wait for each response:
+        for (i = 0; i < SWS; i++) {
+            bzero(ack, sizeof (ack));
+            if (recvfrom(sd, ack, sizeof (ack), 0, (struct sockaddr *) &server, &serverLen) < 0) {
+                printf("timeout #%i\n", cumAck);
+            }
+            printf("ACK: %s\n", ack);
+            if (!strcmp(strtok(ack, " "), "ACK\0")) {
+                int tmpCumAck = atoi(strtok(NULL, " "));
+                if (tmpCumAck > cumAck) {
+                    cumAck = tmpCumAck;
+                }
+                printf("...ACK received.\n", ack);
+            }
         }
     }
 
-    mempnset(header, ' ', 17, 12);
-    insertNum(header, seqNum, 28);
-    if (sendto_(sd, header, sizeof (header), 0, (struct sockaddr *) &server, serverLen) < 0) {
-        printf("Unable to send file size to server\n");
-    }
-
+    free(sWin);
     return 0;
 }

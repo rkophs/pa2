@@ -12,7 +12,7 @@
 int main(int argc, const char * argv[])
 {
 
-    struct window *test = windowInit(6, 1024);
+    /*struct window *test = windowInit(6, 1024);
     char * a = "000";
     char * b = "001";
     char * c = "002";
@@ -47,50 +47,59 @@ int main(int argc, const char * argv[])
     printWindow(test);
     printf("CUM ACK AND MIN AND RWS: %i, %i, %i\n", test->cumSeq, test->min, test->RWS);
     
-    char *shift = shiftWindow(test);
+    char *shift = recvShiftWindow(test);
     printf("Shift: %s\n", shift);
     free(shift);
+    shift = NULL;
     printWindow(test);
     printf("CUM ACK AND MIN AND RWS: %i, %i, %i\n", test->cumSeq, test->min, test->RWS);
-    shift = shiftWindow(test);
+    shift = recvShiftWindow(test);
     printf("Shift: %s\n", shift);
     printWindow(test);
     free(shift);
+    shift = NULL;
     printf("CUM ACK AND MIN AND RWS: %i, %i, %i\n", test->cumSeq, test->min, test->RWS);
-    shift = shiftWindow(test);
+    shift = recvShiftWindow(test);
     printf("Shift: %s\n", shift);
     printWindow(test);
     free(shift);
+    shift = NULL;
     printf("CUM ACK AND MIN AND RWS: %i, %i, %i\n", test->cumSeq, test->min, test->RWS);
-    shift = shiftWindow(test);
+    shift = recvShiftWindow(test);
     printf("Shift: %s\n", shift);
     printWindow(test);
     free(shift);
+    shift = NULL;
     printf("CUM ACK AND MIN AND RWS: %i, %i, %i\n", test->cumSeq, test->min, test->RWS);
-    shift = shiftWindow(test);
+    shift = recvShiftWindow(test);
     printf("Shift: %s\n", shift);
     printWindow(test);
     free(shift);
+    shift = NULL;
     printf("CUM ACK AND MIN AND RWS: %i, %i, %i\n", test->cumSeq, test->min, test->RWS);
-    shift = shiftWindow(test);
+    shift = recvShiftWindow(test);
     printf("Shift: %s\n", shift);
     printWindow(test);
     free(shift);
+    shift = NULL;
     printf("CUM ACK AND MIN AND RWS: %i, %i, %i\n", test->cumSeq, test->min, test->RWS);
-    shift = shiftWindow(test);
+    shift = recvShiftWindow(test);
     printf("Shift: %s\n", shift);
     printWindow(test);
     free(shift);
+    shift = NULL;
     printf("CUM ACK AND MIN AND RWS: %i, %i, %i\n", test->cumSeq, test->min, test->RWS);
-    shift = shiftWindow(test);
+    shift = recvShiftWindow(test);
     printf("Shift: %s\n", shift);
     printWindow(test);
     free(shift);
+    shift = NULL;
     printf("CUM ACK AND MIN AND RWS: %i, %i, %i\n", test->cumSeq, test->min, test->RWS);
-    shift = shiftWindow(test);
+    shift = recvShiftWindow(test);
     printf("Shift: %s\n", shift);
     printWindow(test);
     free(shift);
+    shift = NULL;
     printf("CUM ACK AND MIN AND RWS: %i, %i, %i\n", test->cumSeq, test->min, test->RWS);
     
     printf("REDO\n");
@@ -117,33 +126,38 @@ int main(int argc, const char * argv[])
     printf("CUM ACK AND MIN AND RWS: %i, %i, %i\n", test->cumSeq, test->min, test->RWS);
     
     printf("NOW SHIFTING WINDOW\n");
-    shift = shiftWindow(test);
+    shift = recvShiftWindow(test);
     printf("Shift: %s\n", shift);
     free(shift);
+    shift = NULL;
     printWindow(test);
     printf("CUM ACK AND MIN AND RWS: %i, %i, %i\n", test->cumSeq, test->min, test->RWS);
-    shift = shiftWindow(test);
+    shift = recvShiftWindow(test);
     printf("Shift: %s\n", shift);
     free(shift);
+    shift = NULL;
     printWindow(test);
     printf("CUM ACK AND MIN AND RWS: %i, %i, %i\n", test->cumSeq, test->min, test->RWS);
-    shift = shiftWindow(test);
+    shift = recvShiftWindow(test);
     printf("Shift: %s\n", shift);
     free(shift);
+    shift = NULL;
     printWindow(test);
     printf("CUM ACK AND MIN AND RWS: %i, %i, %i\n", test->cumSeq, test->min, test->RWS);
-    shift = shiftWindow(test);
+    shift = recvShiftWindow(test);
     printf("Shift: %s\n", shift);
     free(shift);
+    shift = NULL;
     printWindow(test);
     printf("CUM ACK AND MIN AND RWS: %i, %i, %i\n", test->cumSeq, test->min, test->RWS);
-    shift = shiftWindow(test);
+    shift = recvShiftWindow(test);
     printf("Shift: %s\n", shift);
     free(shift);
+    shift = NULL;
     printWindow(test);
     printf("CUM ACK AND MIN AND RWS: %i, %i, %i\n", test->cumSeq, test->min, test->RWS);
     
-    freeWindow(test);
+    freeWindow(test);*/
 
     return 0;
 }

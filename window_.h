@@ -214,6 +214,8 @@ void insertSubBuffer(struct window* buffer, int seq, char* payload, int payLoadS
             }
         }
         buffer->rws--;
+    } else {
+        printf("outside of buffer: %i [%i, %i]\n", seq, buffer->min, buffer->min + buffer->size);
     }
 }
 
@@ -228,7 +230,7 @@ void printWindow(struct window *buffer) {
     for (i = 0; i < size; i++) {
         printf("(%i, %s) ", buffer->table[i].seq, buffer->table[i].buffer);
     }
-    printf("]\n");
+    printf("] min: %i, cumSeq: %i, RWS: %i\n", buffer->min, buffer->cumSeq, buffer->rws);
 }
 
 /* Destruct window memory:

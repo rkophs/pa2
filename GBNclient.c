@@ -105,7 +105,8 @@ int main(int argc, char *argv[]) {
                 printf("timeout #%i\n", cumAck);
             }
             printf("ACK: %s\n", ack);
-            if (!strcmp(strtok(ack, " "), "ACK\0")) {
+            if (!strncmp(ack, "ACK", 3)) {
+                char *token = strtok(ack, " ");
                 int tmpCumAck = atoi(strtok(NULL, " "));
                 if (tmpCumAck > cumAck) {
                     cumAck = tmpCumAck;

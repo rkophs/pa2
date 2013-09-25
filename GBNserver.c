@@ -78,19 +78,19 @@ int main(int argc, char *argv[]) {
                 payload[i] = buffer[i+32];
             }
             insertSubBuffer(rWin, seq, payload, sizeof(payload));
-            //printf("BUFF: MIN %i, CUM %i, RWS %i\n", rWin->min, rWin->cumSeq, rWin->RWS);
+            printWindow(rWin);
             //If possible, write all buffers <= cumAck into file:
-            while(rWin->cumSeq > rWin->min){
+            while(rWin->cumSeq >= rWin->min){
                 char *left = recvShiftWindow(rWin); //Only truly shifts if appr.
                 //Write left to file here!!!
                 free(left);
                 left = NULL; //Must do so to avoid double freeing of mem.
             }
             
-            if (rWin->cumSeq >= filesize) {
+            if (rWin->cumSeq >= filesize) { //This logic is incorrect
                 printf("Seq# %i is beyond file scope\n", seq);
                 break;
-            } else if ((seq + 1) * MAXBUFFSIZE >= filesize /*&& RWS == 0*/) {
+            } else if ((seq + 1) * MAXBUFFSIZE >= filesize) {
                 //last part of file is received
                 struct timeval tv;
                 tv.tv_sec = 0;
@@ -103,7 +103,7 @@ int main(int argc, char *argv[]) {
             memset(ack, ' ', sizeof (ack));
             ack[31] = 0;
             strncpy(ack, "ACK", 3);
-            insertNum(ack, seq, 15);
+            insertNum(ack, rWin->cumSeq, 15);
             insertNum(ack, rWin->rws, 28);
 
             if (sendto_(sd, ack, sizeof (ack), 0, (struct sockaddr *) &client, clientLen) < 1) {

@@ -113,7 +113,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    free(rWin);
+    freeWindow(rWin);
     return 0;
 }
 

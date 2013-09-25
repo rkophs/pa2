@@ -12,10 +12,10 @@
 #include <string.h> /* memset() */
 #include <stdlib.h>
 #include <time.h>
-#include "sendto_.h"
-#include "fileManip_.h"
-#include "socket_.h"
-#include "window_.h"
+#include "dependencies/sendto_.h"
+#include "dependencies/fileManip_.h"
+#include "dependencies/socket_.h"
+#include "dependencies/window_.h"
 
 #define MAXBUFFSIZE 1024
 #define RWS 6

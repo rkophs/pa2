@@ -119,6 +119,6 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    free(sWin);
+    freeWindow(sWin);
     return 0;
 }

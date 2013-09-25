@@ -56,6 +56,7 @@ int main(int argc, char *argv[]) {
     //Instantiate window with N buffers of 1024 bytes:
     struct window* rWin = windowInit(RWS, MAXBUFFSIZE);
     char payload[MAXBUFFSIZE];
+    
     //Iterate through Synchronous connection:
     while (1) {
         
@@ -71,6 +72,7 @@ int main(int argc, char *argv[]) {
         if (!strcmp(strtok(buffer, " "), "hdr\0")) {
             int filesize = atoi(strtok(NULL, " "));     //Parse file size
             int seq = atoi(strtok(NULL, " "));          //Parse sequence #
+            printf("Received seq#: %i ...Putting into window...\n", seq, filesize);
             
             //Copy packet buffer into payload to pass to window:
             int i;
@@ -99,7 +101,6 @@ int main(int argc, char *argv[]) {
                     printf("Error setting timeout\n");
                 }
             }
-            printf("Received %i bytes of %i total bytes in Seq# %i. Sending ACK <%i><%i>...\n", MAXBUFFSIZE, filesize, seq, seq, 6);
             memset(ack, ' ', sizeof (ack));
             ack[31] = 0;
             strncpy(ack, "ACK", 3);
@@ -113,5 +114,6 @@ int main(int argc, char *argv[]) {
     }
 
     free(rWin);
+    return 0;
 }
 

@@ -40,7 +40,7 @@ int main(int argc, char *argv[]) {
     }
 
     /* set up address spaces and bind to socket*/
-    struct sockaddr_in server = buildLocalAddr(NULL, argv[1]);
+    struct sockaddr_in server = buildAddr(NULL, argv[1]);
     struct sockaddr_in client;
     unsigned int clientLen = sizeof (client);
     if (bind(sd, (struct sockaddr *) &server, sizeof (server)) < 0) {

@@ -12,7 +12,7 @@
 #include <signal.h>
 #include <unistd.h>
 
-struct sockaddr_in buildLocalAddr(char * ip, char * port){
+struct sockaddr_in buildAddr(char * ip, char * port){
     struct sockaddr_in addr;
     bzero(&addr, sizeof (addr)); //zero the struct
     addr.sin_family = AF_INET; //address family

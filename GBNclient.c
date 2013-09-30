@@ -42,7 +42,7 @@ int main(int argc, char *argv[]) {
     }
 
     /* get server IP address (input must be IP address, not DNS name) */
-    struct sockaddr_in server = buildLocalAddr(argv[1], argv[2]);
+    struct sockaddr_in server = buildAddr(argv[1], argv[2]);
     unsigned int serverLen = sizeof (server);
     printf("%s: sending file '%s' to '%s:%s' \n", argv[0], argv[5], argv[1], argv[2]);
 

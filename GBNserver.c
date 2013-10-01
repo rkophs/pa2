@@ -13,7 +13,6 @@
 #include <stdlib.h>
 #include <time.h>
 #include "dependencies/sendto_.h"
-#include "dependencies/fileManip_.h"
 #include "dependencies/socket_.h"
 #include "dependencies/window_.h"
 
@@ -32,7 +31,6 @@ int main(int argc, char *argv[]) {
 
     /* Note: you must initialize the network library first before calling sendto_().  The arguments are the <errorrate> and <random seed> */
     init_net_lib(atof(argv[2]), atoi(argv[3]));
-    printf("error rate : %f\n", atof(argv[2]));
 
     /* socket creation */
     int sd;
@@ -73,7 +71,6 @@ int main(int argc, char *argv[]) {
         if ((nBytes = recvfrom(sd, buffer, sizeof (buffer), 0, (struct sockaddr *) &client, &clientLen)) < 0) {
             //This timeout control is not set until the entire file has been written!
             //In case of a timeout, the file is completely received and this server may exit.
-            printf("Timeout occurred. Client terminated. Now server is terminating\n");
             break;
         }
 
@@ -81,27 +78,20 @@ int main(int argc, char *argv[]) {
         if (!strcmp(strtok(buffer, " "), "hdr\0")) {
             int filesize = atoi(strtok(NULL, " ")); //Parse file size
             int seq = atoi(strtok(NULL, " ")); //Parse sequence #
-            printf("Received seq#: %i of size: %i\n", seq, nBytes);
 
-            //Copy packet buffer into payload to pass to window:
-            int i;
-            for (i = 0; i < MAXBUFFSIZE; i++) {
-                payload[i] = buffer[i + 32];
-            }
-            insertSubBuffer(rWin, seq, payload, nBytes - 32);
-            printWindow(rWin);
+            //Copy payload (from byte 32 and on) into window:
+            insertSubBuffer(rWin, seq, buffer + 32, nBytes - 32);
 
-            //If possible, write all buffers lesser than cumAck into file:
+            //Update file by copying buffers <= cumAck
             while (rWin->cumSeq >= rWin->min) {
                 int size = rWin->table[0].buffSize;
                 if (recvShiftWindow(rWin, payload) >= 0 && size > 0) {
-                    printf("Writing with Size: %i\n", size);
                     if (!fwrite(payload, 1, size, file)) {
                         printf("Error write to file\n");
                         fclose(file);
                         exit(1);
                     }
-                } //Only shifts if appr.
+                }
 
             }
 
@@ -109,7 +99,6 @@ int main(int argc, char *argv[]) {
              * (At which point the client stops sending ACKs.)
              */
             if ((rWin->cumSeq) * MAXBUFFSIZE >= filesize) {
-                printf("Setting up timeout with cumAck: %i and fileSize: %i\n", rWin->cumSeq, filesize);
                 //last part of file is received
                 struct timeval tv;
                 tv.tv_sec = 0;

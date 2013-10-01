@@ -16,7 +16,6 @@
 #include <signal.h>
 #include <unistd.h>
 #include "dependencies/sendto_.h"
-#include "dependencies/fileManip_.h"
 #include "dependencies/socket_.h"
 #include "dependencies/window_.h"
 
@@ -25,6 +24,7 @@
 
 int main(int argc, char *argv[]) {
 
+    /* -----------------MAIN Initial Setup Routine. ------------------------------------------------------------------*/
     /* check command line args. */
     if (argc < 7) {
         printf("usage : %s <server_ip> <server_port> <error rate> <random seed> <send_file> <send_log> \n", argv[0]);
@@ -55,59 +55,71 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    /* get size of file to send to server*/
-    int fileSize;
-    if ((fileSize = getFileSize(argv[5])) < 0)
+    /* Open input file*/
+    FILE *file;
+    if (!(file = fopen(argv[5], "rb"))) {
+        printf("Error opening file: %s\n", argv[5]);
         return 1;
+    }
+
+    /* Get file size*/
+    fseek(file, 0L, SEEK_END);
+    int fileSize = ftell(file);
+    fseek(file, 0L, SEEK_SET);
+
+    /* Copy file into buffer:*/
+    char * fileBuffer;
+    if ((fileBuffer = malloc(fileSize)) == NULL) {
+        printf("Not enough memory to bufferize file.\n");
+    }
+    if (!fread(fileBuffer, 1, fileSize, file)) {
+        printf("Error reading file (%s) into buffer.\n", argv[5]);
+        free(fileBuffer);
+        fclose(file);
+        return 1;
+    }
+    fclose(file);
+
+    /* Find the last seq.# for the file and its buffer size*/
     int lastSize = fileSize % MAXBUFFSIZE;
     int lastSeq = fileSize / MAXBUFFSIZE;
-    char *fileBuffer = bufferize(argv[5]);
 
     char header[32];
-    char buffer[MAXBUFFSIZE + sizeof (header)];
     char payload[MAXBUFFSIZE];
+    char buffer[sizeof (payload) + sizeof (header)];
     char ack[32];
-    printf("File size %i sending to %s:%s\n", fileSize, argv[1], argv[2]);
-
-    int seqMax = fileSize / MAXBUFFSIZE + 1;
 
     //Initialize window and populate with data;
     struct window *sWin = windowInit(SWS, MAXBUFFSIZE);
     int i;
-    for (i = 0; i < SWS && i < seqMax; i++) {
-        printf("IT: %i %i\n", i, lastSeq);
-        if (i == lastSeq) {
-            insertSubBuffer(sWin, i, fileBuffer + i*MAXBUFFSIZE, lastSize);
-        } else if (i < lastSeq) {
-            insertSubBuffer(sWin, i, fileBuffer + i*MAXBUFFSIZE, MAXBUFFSIZE);
+    for (i = 0; i < SWS && i <= lastSeq; i++) {
+        if (i <= lastSeq) {
+            int size = (i == lastSeq) ? lastSize : MAXBUFFSIZE;
+            insertSubBuffer(sWin, i, fileBuffer + i*MAXBUFFSIZE, size);
         } else {
-            printf("Else");
             insertSubBuffer(sWin, i, NULL, 0);
         }
-
     }
 
-    printf("TEST %i", lastSize);
+    /* -----------------MAIN Go Back N Protocol Looping. -------------------------------------------------------*/
     int cumAck = -1;
-    while (cumAck < seqMax) {
+    while (cumAck < (lastSeq + 1)) {
 
-        //Slide window:
-        while (sWin->min <= cumAck && (sWin->min + SWS) <= seqMax) {
-            if (sWin->min + SWS == seqMax) {
+        //Slide window until beyond cumSeq:
+        while (sWin->min <= cumAck && (sWin->min + SWS) <= (lastSeq + 1)) {
+            if (sWin->min + SWS == (lastSeq + 1)) {
                 sendShiftWindow(sWin, sWin->min + SWS, NULL, 0);
             } else {
                 int pos = (sWin->min + SWS) * MAXBUFFSIZE;
                 int size = (sWin->min + SWS == lastSeq) ? lastSize : MAXBUFFSIZE;
-                printf("SW: size: %i, Seq: %i", size, sWin->min + SWS);
                 sendShiftWindow(sWin, sWin->min + SWS, fileBuffer + pos, size);
             }
         }
 
-        //Send each packet in window and only those packets within the fileSize:
-        for (i = 0; (i < SWS) && ((sWin->min + i) <= seqMax); i++) {
+        //Send each packet in window and only those packets within the fileSize + 1:
+        for (i = 0; (i < SWS) && ((sWin->min + i) <= (lastSeq + 1)); i++) {
             buildHeader(header, sizeof (header), "hdr", 3, fileSize, 15, sWin->min + i, 28);
             int payloadSize = sWin->table[i].buffSize;
-            printf("header [%i]: %s || size: %i\n", sWin->min + i, header, payloadSize);
             bzero(buffer, sizeof (buffer));
             strncpy(buffer, header, sizeof (header));
             sendPullSubBuffer(sWin, sWin->min + i, payload);
@@ -118,19 +130,16 @@ int main(int argc, char *argv[]) {
         }
 
         //Now wait for each response:
-        for (i = 0; i < SWS && ((sWin->min + i) <= seqMax); i++) {
-            if (sWin->min + i <= seqMax) {
-                bzero(ack, sizeof (ack));
-                if (recvfrom(sd, ack, sizeof (ack), 0, (struct sockaddr *) &server, &serverLen) < 0) {
-                    printf("timeout\n");
-                }
-                if (!strncmp(ack, "ACK", 3)) {
-                    printf("ACK: %s\n", ack);
-                    char *token = strtok(ack, " ");
-                    int tmpCumAck = atoi(strtok(NULL, " "));
-                    if (tmpCumAck > cumAck) {
-                        cumAck = tmpCumAck;
-                    }
+        for (i = 0; i < SWS && ((sWin->min + i) <= (lastSeq + 1)); i++) {
+            bzero(ack, sizeof (ack));
+            if (recvfrom(sd, ack, sizeof (ack), 0, (struct sockaddr *) &server, &serverLen) < 0) {
+                printf("Timeout occurred.\n");
+            }
+            if (!strncmp(ack, "ACK", 3)) {
+                strtok(ack, " ");
+                int tmpCumAck = atoi(strtok(NULL, " "));
+                if (tmpCumAck > cumAck) {
+                    cumAck = tmpCumAck;
                 }
             }
         }

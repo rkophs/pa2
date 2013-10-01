@@ -22,6 +22,8 @@
 
 int main(int argc, char *argv[]) {
 
+    int nBytes = 0;
+
     /* check command line args. */
     if (argc < 6) {
         printf("usage : %s <server_port> <error rate> <random seed> <send_file> <send_log> \n", argv[0]);
@@ -45,54 +47,69 @@ int main(int argc, char *argv[]) {
     unsigned int clientLen = sizeof (client);
     if (bind(sd, (struct sockaddr *) &server, sizeof (server)) < 0) {
         printf("%s: cannot to bind port number %s \n", argv[0], argv[1]);
-        exit(1);
+        return 1;
     }
 
     //Set up recv buffer and ACK response buffer
     char buffer[MAXBUFFSIZE + 32];
     char ack[32];
-    strncpy(ack, "OK\0", 3);
-    
+
     //Instantiate window with N buffers of 1024 bytes:
     struct window* rWin = windowInit(RWS, MAXBUFFSIZE);
     char payload[MAXBUFFSIZE];
+
+    //Open file:
+    FILE *file;
+    if(!(file = fopen(argv[4], "wb"))){
+        printf("Error creating file: %s\n", argv[4]);
+        return 0;
+    }
     
     //Iterate through Synchronous connection:
     while (1) {
-        
+
         //Wait for client to send data:
         bzero(buffer, sizeof (buffer));
-        if(recvfrom(sd, buffer, sizeof (buffer), 0, (struct sockaddr *) &client, &clientLen) < 0){
+        if ((nBytes = recvfrom(sd, buffer, sizeof (buffer), 0, (struct sockaddr *) &client, &clientLen)) < 0) {
             //This timeout control is not set until the entire file has been written!
+            //In case of a timeout, the file is completely received and this server may exit.
             printf("Timeout occurred. Client terminated. Now server is terminating\n");
             break;
         }
 
-        //If data buffer starts with hdr (which it always should):
+        //If data buffer starts with 'hdr' (which it always should):
         if (!strcmp(strtok(buffer, " "), "hdr\0")) {
-            int filesize = atoi(strtok(NULL, " "));     //Parse file size
-            int seq = atoi(strtok(NULL, " "));          //Parse sequence #
-            printf("Received seq#: %i ...Putting into window...\n", seq, filesize);
-            
+            int filesize = atoi(strtok(NULL, " ")); //Parse file size
+            int seq = atoi(strtok(NULL, " ")); //Parse sequence #
+            printf("Received seq#: %i of size: %i\n", seq, nBytes);
+
             //Copy packet buffer into payload to pass to window:
             int i;
-            for(i = 0; i < MAXBUFFSIZE; i++){
-                payload[i] = buffer[i+32];
+            for (i = 0; i < MAXBUFFSIZE; i++) {
+                payload[i] = buffer[i + 32];
             }
-            insertSubBuffer(rWin, seq, payload, sizeof(payload));
+            insertSubBuffer(rWin, seq, payload, nBytes - 32);
             printWindow(rWin);
-            //If possible, write all buffers <= cumAck into file:
-            while(rWin->cumSeq >= rWin->min){
-                char *left = recvShiftWindow(rWin); //Only truly shifts if appr.
-                //Write left to file here!!!
-                free(left);
-                left = NULL; //Must do so to avoid double freeing of mem.
+
+            //If possible, write all buffers lesser than cumAck into file:
+            while (rWin->cumSeq >= rWin->min) {
+                int size = rWin->table[0].buffSize;
+                if (recvShiftWindow(rWin, payload) >= 0 && size > 0) {
+                    printf("Writing with Size: %i\n", size);
+                    if (!fwrite(payload, 1, size, file)) {
+                        printf("Error write to file\n");
+                        fclose(file);
+                        exit(1);
+                    }
+                } //Only shifts if appr.
+
             }
-            
-            if (rWin->cumSeq >= filesize) { //This logic is incorrect
-                printf("Seq# %i is beyond file scope\n", seq);
-                break;
-            } else if ((seq + 1) * MAXBUFFSIZE >= filesize) {
+
+            /*Set up timeout with client after all seq.# arrived for file
+             * (At which point the client stops sending ACKs.)
+             */
+            if ((rWin->cumSeq) * MAXBUFFSIZE >= filesize) {
+                printf("Setting up timeout with cumAck: %i and fileSize: %i\n", rWin->cumSeq, filesize);
                 //last part of file is received
                 struct timeval tv;
                 tv.tv_sec = 0;
@@ -101,11 +118,8 @@ int main(int argc, char *argv[]) {
                     printf("Error setting timeout\n");
                 }
             }
-            memset(ack, ' ', sizeof (ack));
-            ack[31] = 0;
-            strncpy(ack, "ACK", 3);
-            insertNum(ack, rWin->cumSeq, 15);
-            insertNum(ack, rWin->rws, 28);
+
+            buildHeader(ack, sizeof (ack), "ACK", 3, rWin->cumSeq, 15, rWin->rws, 28);
 
             if (sendto_(sd, ack, sizeof (ack), 0, (struct sockaddr *) &client, clientLen) < 1) {
                 printf("Error sending ACK\n");
@@ -113,7 +127,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    fclose(file);
     freeWindow(rWin);
     return 0;
 }
-

@@ -14,6 +14,7 @@
 struct subBuffer {
     int seq; //Seq # to corresponding buffer
     char *buffer; //Buffer array (1024 bytes)
+    int buffSize;
 };
 
 //Window object:
@@ -54,6 +55,7 @@ struct window *windowInit(int windowSize, int payloadSize) {
     int i;
     for (i = 0; i < windowSize; i++) {
         tmp->table[i].seq = -1;
+        tmp->table[i].buffSize = 0;
         if ((tmp->table[i].buffer = malloc(payloadSize)) == NULL) {
             free(tmp->table);
             free(tmp);
@@ -83,19 +85,13 @@ struct window *windowInit(int windowSize, int payloadSize) {
  *      seq: Seq# of buffer to pull
  *      reset: set specificed buffer to 0 if true
  */
-char* pullSubBuffer(struct window* buffer, int seq, int reset) {
+int pullSubBuffer(struct window* buffer, int seq, int reset, char *tmp) {
     int min = buffer->min; //Beginning seq# of window
     int max = buffer->size + min; //Ending seq# of window
 
-    //If specified seq is out of range, or corresponding buffer is empry:
+    //If specified seq is out of range, or corresponding buffer is empty:
     if (seq < min || seq >= max || buffer->table[seq - min].seq == -1) {
-        return NULL;
-    }
-
-    //Malloc a return buffer to copy to.
-    char *tmp;
-    if ((tmp = malloc(buffer->bufferSize)) == NULL) {
-        return NULL; //not enough memory to return
+        return -1;
     }
 
     //Copy buffer to temp, and empty out (zero out):
@@ -107,10 +103,11 @@ char* pullSubBuffer(struct window* buffer, int seq, int reset) {
             buffer->table[seq - min].buffer[i] = 0;
         }
     }
-    buffer->table[seq - min].seq = -1;
-    buffer->rws++;
-
-    return tmp;
+    if(reset){
+        buffer->table[seq - min].seq = -1;
+        buffer->table[seq - min].buffSize = 0;
+    }
+    return 0;
 }
 
 /*Pull specific buffer out of window
@@ -119,8 +116,8 @@ char* pullSubBuffer(struct window* buffer, int seq, int reset) {
  *      buffer: Window to pull buffer from
  *      seq: Seq# of buffer to pull
  */
-char *sendPullSubBuffer(struct window* buffer, int seq){
-    pullSubBuffer(buffer, seq, 0);
+int sendPullSubBuffer(struct window* buffer, int seq, char *tmp){
+    return pullSubBuffer(buffer, seq, 0, tmp);
 }
 
 /* Pull beginning element out if present and shift all later elements left by 1
@@ -128,13 +125,11 @@ char *sendPullSubBuffer(struct window* buffer, int seq){
  * Params:
  *      buffer: Window to pull buffer from
  */
-char *recvShiftWindow(struct window* buffer) {
+int recvShiftWindow(struct window* buffer, char *tmp) {
 
-    //Pull out first element:
-    char *tmp;
-    if ((tmp = pullSubBuffer(buffer, buffer->min, 1)) == NULL) {
-        free(tmp);
-        return NULL;
+    int buffSize = buffer->table[0].buffSize;
+    if (pullSubBuffer(buffer, buffer->min, 1, tmp) < 0) {
+        return -1;
     } else { //If 1st element was present and popped, now 1st element is empty:
         int i;
         int size = buffer->size;
@@ -144,11 +139,10 @@ char *recvShiftWindow(struct window* buffer) {
             buffer->table[i] = buffer->table[i + 1];
         }
         buffer->table[size - 1] = last;
-
         //Min moves up 1 because min element is now the next after the shift:
         buffer->min++;
-
-        return tmp;
+        
+        return buffSize;
     }
 }
 
@@ -161,22 +155,30 @@ void sendShiftWindow(struct window *buffer, int seq, char *newBuff, int newBuffS
     int i, j;
     int size = buffer->size;
     int len = buffer->bufferSize;
+    
     //Shift everything 1 to the left:
     for (i = 1; i < size; i++) {
         for (j = 0; j < len; j++) {
             buffer->table[i - 1].buffer[j] = buffer->table[i].buffer[j];
         }
+        buffer->table[i - 1].seq = buffer->table[i].seq;
+        buffer->table[i - 1].buffSize = buffer->table[i].buffSize;
     }
+    
     //Set last buffer to 0:
     for (j = 0; j < len; j++) {
         buffer->table[size - 1].buffer[j] = 0;
     }
+    buffer->table[size - 1].buffSize = 0;
+    buffer->table[size - 1].seq = -1;
+    
     //Add new buffer in final position:
     if (newBuff != NULL) {
         for (j = 0; j < newBuffSize; j++) {
             buffer->table[size-1].buffer[j] = newBuff[j];
         }
         buffer->table[size - 1].seq = seq;
+        buffer->table[size - 1].buffSize = newBuffSize;
     }
     buffer->cumSeq++;
     buffer->min++;
@@ -202,6 +204,7 @@ void insertSubBuffer(struct window* buffer, int seq, char* payload, int payLoadS
     //Move payload into appropriate spot if within window:
     if (seq >= min && seq < (min + size) && buffer->table[seq - min].seq != seq) {
         buffer->table[seq - min].seq = seq;
+        buffer->table[seq - min].buffSize = payLoadSize;
         int i;
         for (i = 0; i < payLoadSize; i++) {
             buffer->table[seq - min].buffer[i] = payload[i];
@@ -213,7 +216,6 @@ void insertSubBuffer(struct window* buffer, int seq, char* payload, int payLoadS
                 buffer->cumSeq++;
             }
         }
-        buffer->rws--;
     } else {
         printf("outside of buffer: %i [%i, %i]\n", seq, buffer->min, buffer->min + buffer->size);
     }
@@ -228,7 +230,7 @@ void printWindow(struct window *buffer) {
     int size = buffer->size;
     printf("[");
     for (i = 0; i < size; i++) {
-        printf("(%i, %s) ", buffer->table[i].seq, buffer->table[i].buffer);
+        printf("(%i, %i) ", buffer->table[i].seq, buffer->table[i].buffSize);
     }
     printf("] min: %i, cumSeq: %i, RWS: %i\n", buffer->min, buffer->cumSeq, buffer->rws);
 }
@@ -240,9 +242,13 @@ void printWindow(struct window *buffer) {
 void freeWindow(struct window* buffer) {
     int i;
     int size = buffer->size;
+    printf("Sub buffers to free: %i\n", size);
     for (i = 0; i < size; i++) {
+        printf("%i \n", i);
         free(buffer->table[i].buffer);
     }
+    printf("table free:\n");
     free(buffer->table);
+    printf("buffer Free:\n");
     free(buffer);
 }

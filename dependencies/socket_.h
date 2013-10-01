@@ -23,7 +23,12 @@ struct sockaddr_in buildAddr(char * ip, char * port){
 
 void insertNum(char * buffer, int num, int leastSignificantPos){
     if(num == 0){
-        buffer[leastSignificantPos] = 48;
+        buffer[leastSignificantPos] = '0';
+        return;
+    }
+    if(num < 0){
+        buffer[leastSignificantPos] = '1';
+        buffer[leastSignificantPos - 1] = '-';
         return;
     }
     int tmp = num;
@@ -33,6 +38,15 @@ void insertNum(char * buffer, int num, int leastSignificantPos){
         tmp /= 10;
         i--;
     }
+}
+
+void buildHeader(char * buffer, int bufferSize, char * title, int titleSize, 
+                 int num1 , int lSigBit1, int num2, int lSigBit2){
+    memset(buffer, ' ', bufferSize);
+    buffer[bufferSize-1] = 0;
+    strncpy(buffer, title, titleSize);
+    insertNum(buffer, num1, lSigBit1);
+    insertNum(buffer, num2, lSigBit2);
 }
 
 void mempnset(char *buffer, char mask, int pos, int len){

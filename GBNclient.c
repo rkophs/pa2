@@ -59,49 +59,66 @@ int main(int argc, char *argv[]) {
     int fileSize;
     if ((fileSize = getFileSize(argv[5])) < 0)
         return 1;
+    int lastSize = fileSize % MAXBUFFSIZE;
+    int lastSeq = fileSize / MAXBUFFSIZE;
+    char *fileBuffer = bufferize(argv[5]);
 
     char header[32];
     char buffer[MAXBUFFSIZE + sizeof (header)];
-    memset(header, ' ', sizeof (header));
-    header[31] = 0;
-    strncpy(header, "hdr ", 4);
-    insertNum(header, fileSize, 15);
-
+    char payload[MAXBUFFSIZE];
     char ack[32];
     printf("File size %i sending to %s:%s\n", fileSize, argv[1], argv[2]);
 
-    int seqMax = 33; //20 * fileSize / MAXBUFFSIZE + 1;
+    int seqMax = fileSize / MAXBUFFSIZE + 1;
 
     //Initialize window and populate with data;
     struct window *sWin = windowInit(SWS, MAXBUFFSIZE);
     int i;
-    for (i = 0; i < SWS; i++) {
-        insertSubBuffer(sWin, i, "a", 1);
+    for (i = 0; i < SWS && i < seqMax; i++) {
+        printf("IT: %i %i\n", i, lastSeq);
+        if (i == lastSeq) {
+            insertSubBuffer(sWin, i, fileBuffer + i*MAXBUFFSIZE, lastSize);
+        } else if (i < lastSeq) {
+            insertSubBuffer(sWin, i, fileBuffer + i*MAXBUFFSIZE, MAXBUFFSIZE);
+        } else {
+            printf("Else");
+            insertSubBuffer(sWin, i, NULL, 0);
+        }
+
     }
 
+    printf("TEST %i", lastSize);
     int cumAck = -1;
     while (cumAck < seqMax) {
+
         //Slide window:
-        while (sWin->min <= cumAck) {
-            sendShiftWindow(sWin, sWin->min + SWS, "a", 1);
+        while (sWin->min <= cumAck && (sWin->min + SWS) <= seqMax) {
+            if (sWin->min + SWS == seqMax) {
+                sendShiftWindow(sWin, sWin->min + SWS, NULL, 0);
+            } else {
+                int pos = (sWin->min + SWS) * MAXBUFFSIZE;
+                int size = (sWin->min + SWS == lastSeq) ? lastSize : MAXBUFFSIZE;
+                printf("SW: size: %i, Seq: %i", size, sWin->min + SWS);
+                sendShiftWindow(sWin, sWin->min + SWS, fileBuffer + pos, size);
+            }
         }
-         
-        //Send each packet in window:
-        for (i = 0; i < SWS; i++) {
-            if (sWin->min + i <= seqMax) {
-                mempnset(header, ' ', 17, 12);
-                insertNum(header, sWin->min + i, 28);
-                printf("header [%i]: %s\n", sWin->min + i, header);
-                bzero(buffer, sizeof (buffer));
-                strncpy(buffer, header, sizeof (header));
-                if (sendto_(sd, buffer, sizeof (buffer), 0, (struct sockaddr *) &server, serverLen) < 0) {
-                    printf("Unable to send file size to server\n");
-                }
+
+        //Send each packet in window and only those packets within the fileSize:
+        for (i = 0; (i < SWS) && ((sWin->min + i) <= seqMax); i++) {
+            buildHeader(header, sizeof (header), "hdr", 3, fileSize, 15, sWin->min + i, 28);
+            int payloadSize = sWin->table[i].buffSize;
+            printf("header [%i]: %s || size: %i\n", sWin->min + i, header, payloadSize);
+            bzero(buffer, sizeof (buffer));
+            strncpy(buffer, header, sizeof (header));
+            sendPullSubBuffer(sWin, sWin->min + i, payload);
+            memcpy(buffer + sizeof (header), payload, payloadSize);
+            if (sendto_(sd, buffer, payloadSize + sizeof (header), 0, (struct sockaddr *) &server, serverLen) < 0) {
+                printf("Unable to send file size to server\n");
             }
         }
 
         //Now wait for each response:
-        for (i = 0; i < SWS; i++) {
+        for (i = 0; i < SWS && ((sWin->min + i) <= seqMax); i++) {
             if (sWin->min + i <= seqMax) {
                 bzero(ack, sizeof (ack));
                 if (recvfrom(sd, ack, sizeof (ack), 0, (struct sockaddr *) &server, &serverLen) < 0) {
@@ -119,6 +136,8 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    printf("Outside ]n");
+    free(fileBuffer);
     freeWindow(sWin);
     return 0;
 }

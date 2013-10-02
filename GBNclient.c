@@ -18,6 +18,7 @@
 #include "dependencies/sendto_.h"
 #include "dependencies/socket_.h"
 #include "dependencies/window_.h"
+#include "dependencies/logger_.h"
 
 #define MAXBUFFSIZE 1024
 #define SWS 9
@@ -25,40 +26,51 @@
 int main(int argc, char *argv[]) {
 
     /* -----------------MAIN Initial Setup Routine. ------------------------------------------------------------------*/
+    /* Open logger*/
+    FILE *log;
+    if(!(log = fopen("clientLog.txt", "wb"))){
+        printf("Error instantiating log file\n");
+        return;
+    }
+    
     /* check command line args. */
     if (argc < 7) {
         printf("usage : %s <server_ip> <server_port> <error rate> <random seed> <send_file> <send_log> \n", argv[0]);
+        fclose(log);
         return 1;
     }
 
     init_net_lib(atof(argv[3]), atoi(argv[4]));
-    printf("error rate : %f\n", atof(argv[3]));
+    LOGGER(log, "error rate : %f\n", atof(argv[3]));
 
     /* socket creation */
     int sd;
     if ((sd = socket(PF_INET, SOCK_DGRAM, 0)) < 0) {
-        printf("%s: cannot create socket \n", argv[0]);
+        LOGGER(log, "%s: cannot create socket \n", argv[0]);
+        fclose(log);
         return 1;
     }
 
     /* get server IP address (input must be IP address, not DNS name) */
     struct sockaddr_in server = buildAddr(argv[1], argv[2]);
     unsigned int serverLen = sizeof (server);
-    printf("%s: sending file '%s' to '%s:%s' \n", argv[0], argv[5], argv[1], argv[2]);
+    LOGGER(log, "%s: sending file '%s' to '%s:%s' \n", argv[0], argv[5], argv[1], argv[2]);
 
     /* set timeout for recvfrom function*/
     struct timeval tv;
     tv.tv_sec = 0;
     tv.tv_usec = 50000; //50 ms
     if (setsockopt(sd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof (tv)) < 0) {
-        printf("Error setting timeout\n");
+        LOGGER(log, "Error setting timeout\n");
+        fclose(log);
         return 1;
     }
 
     /* Open input file*/
     FILE *file;
     if (!(file = fopen(argv[5], "rb"))) {
-        printf("Error opening file: %s\n", argv[5]);
+        LOGGER(log, "Error opening file: %s\n", argv[5]);
+        fclose(log);
         return 1;
     }
 
@@ -70,12 +82,13 @@ int main(int argc, char *argv[]) {
     /* Copy file into buffer:*/
     char * fileBuffer;
     if ((fileBuffer = malloc(fileSize)) == NULL) {
-        printf("Not enough memory to bufferize file.\n");
+        LOGGER(log, "Not enough memory to bufferize file.\n");
     }
     if (!fread(fileBuffer, 1, fileSize, file)) {
-        printf("Error reading file (%s) into buffer.\n", argv[5]);
+        LOGGER(log, "Error reading file (%s) into buffer.\n", argv[5]);
         free(fileBuffer);
         fclose(file);
+        fclose(log);
         return 1;
     }
     fclose(file);
@@ -102,11 +115,13 @@ int main(int argc, char *argv[]) {
     }
 
     /* -----------------MAIN Go Back N Protocol Looping. -------------------------------------------------------*/
-    int cumAck = -1;
-    while (cumAck < (lastSeq + 1)) {
+    int LAR = -1;
+    int LFS0 = -1;
+    int LFS1 = -1;
+    while (LAR < (lastSeq + 1)) {
 
         //Slide window until beyond cumSeq:
-        while (sWin->min <= cumAck && (sWin->min + SWS) <= (lastSeq + 1)) {
+        while (sWin->min <= LAR && (sWin->min + SWS) <= (lastSeq + 1)) {
             if (sWin->min + SWS == (lastSeq + 1)) {
                 sendShiftWindow(sWin, sWin->min + SWS, NULL, 0);
             } else {
@@ -115,7 +130,7 @@ int main(int argc, char *argv[]) {
                 sendShiftWindow(sWin, sWin->min + SWS, fileBuffer + pos, size);
             }
         }
-
+ 
         //Send each packet in window and only those packets within the fileSize + 1:
         for (i = 0; (i < SWS) && ((sWin->min + i) <= (lastSeq + 1)); i++) {
             buildHeader(header, sizeof (header), "hdr", 3, fileSize, 15, sWin->min + i, 28);
@@ -125,28 +140,32 @@ int main(int argc, char *argv[]) {
             sendPullSubBuffer(sWin, sWin->min + i, payload);
             memcpy(buffer + sizeof (header), payload, payloadSize);
             if (sendto_(sd, buffer, payloadSize + sizeof (header), 0, (struct sockaddr *) &server, serverLen) < 0) {
-                printf("Unable to send file size to server\n");
+                LOGGER(log, "Unable to send file size to server\n");
             }
+            SENDR_SEND_LOGGER(log, sWin->min + i, LFS0, LFS1, LAR);
         }
+        LFS0 = sWin->min;
+        LFS1 = sWin->min + i - 1;
 
         //Now wait for each response:
         for (i = 0; i < SWS && ((sWin->min + i) <= (lastSeq + 1)); i++) {
             bzero(ack, sizeof (ack));
             if (recvfrom(sd, ack, sizeof (ack), 0, (struct sockaddr *) &server, &serverLen) < 0) {
-                printf("Timeout occurred.\n");
+                LOGGER(log, "Timeout occurred.\n");
             }
             if (!strncmp(ack, "ACK", 3)) {
                 strtok(ack, " ");
-                int tmpCumAck = atoi(strtok(NULL, " "));
-                if (tmpCumAck > cumAck) {
-                    cumAck = tmpCumAck;
+                int tmpLAR = atoi(strtok(NULL, " "));
+                SENDR_RECV_LOGGER(log, tmpLAR, LFS0, LFS1, LAR);
+                if (tmpLAR > LAR) {
+                    LAR = tmpLAR;
                 }
             }
         }
     }
 
-    printf("Outside ]n");
     free(fileBuffer);
     freeWindow(sWin);
+    fclose(log);
     return 0;
 }

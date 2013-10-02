@@ -216,8 +216,6 @@ void insertSubBuffer(struct window* buffer, int seq, char* payload, int payLoadS
                 buffer->cumSeq++;
             }
         }
-    } else {
-        printf("outside of buffer: %i [%i, %i]\n", seq, buffer->min, buffer->min + buffer->size);
     }
 }
 
@@ -242,13 +240,9 @@ void printWindow(struct window *buffer) {
 void freeWindow(struct window* buffer) {
     int i;
     int size = buffer->size;
-    printf("Sub buffers to free: %i\n", size);
     for (i = 0; i < size; i++) {
-        printf("%i \n", i);
         free(buffer->table[i].buffer);
     }
-    printf("table free:\n");
     free(buffer->table);
-    printf("buffer Free:\n");
     free(buffer);
 }

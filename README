@@ -1,0 +1,31 @@
+Author: Ryan Kophs
+Date: 01 OCT 2013
+
+Description:
+This implements a Go-Back-N Window protocol to send a file from a client to a server.
+
+Compile:
+Run the following:
+> make clean
+> make
+
+Execute:
+The previous compiling process builds two separate directories in project directory: serverDir and clientDir. An executable for the server and client respectively are located in those directories. The clientDir also has a few extra test files to transfer. In order to execute, go to each respective directory and execute the following command:
+For server:
+>./server <port> <error rate> <random seed> <transfer file> <logger file>
+For client:
+>./client <server IP> <port> <error rate> <random seed> <transfer file> <logger file>
+Note: error rate is the packet drop rate for testing purposes. Random seed is used ot decide which packets to drop, just specify an arbitrary integer number for this.
+Program logs will be saved in the location specified for the last parameter.
+
+Go - Back - N Implementation:
+The protocol will reliably transfer any file. Ensure by computing an md5sum on the file in both locations after transfer. The window size for the sender is 9 and for the receiver is 6. The receiver window slides and writes packets after every receive up until the cumulative sequence value. The sender window slides and buffers payloads to send from the received cumulative ACK to the cumulative ACK + 9. Out of order packets on the receiver are buffered up until 6 beyond the cumulative sequence. Packets outside of the receiver window range are discarded.
+
+Technical implementation:
+The window for both the receiver and sender are saved in dependencies/window_.h. Each is instantiated with in init method in there, respective to to input window size (i.e. 6 or 9). That file also contains each of the method functions to manipulate each window, such as sliding, input buffers (frames), extracting buffers (frames), etc. See the file for more detail.
+The dependencies/logger_.h contains each of the methods to output logs to respective logger files.
+The dependencies/socket_.h contains methods to instantiate socket_addr structs, manipulate packet headers, etc.
+Overall, a loop is executed on the receiver until the client stops responding. It sets a timeout on the client once an ACK that is 1 greater than the number of frames needed for the file buffer is received. At such a timeout, the loop finishes and the program quits. A loop is executed on the sender until a cumulative ACK is received from the receiver that is equal to or greater than the number of frames required for the file buffer. At such a time, the loop finishes and the program ends.
+
+NOTE* Valgrind was used thoroughly to test the memory usage of both the sender and the receiver and no memory leaks were found.
+

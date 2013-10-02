@@ -29,8 +29,6 @@ int sendto_(int i1, void* c1, int i2, int i3, struct sockaddr* sa, int i4)
 	rnd = ((rand() / rnd_max) * 1000);
 	if (rnd > p_threshold) {
 		return sendto(i1, c1, i2, i3, sa, i4);
-	} else {
-            printf("Packet dropped\n");
-        }
+	}
 	return i2;
 }

@@ -1,6 +1,6 @@
-/* GBNserver.c */
-/* This is a sample UDP server/receiver program */
-/* This code will not work unless modified. */
+/* Author: Ryan Kophs
+ * Date: 1 Oct 2013
+ */
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -12,10 +12,10 @@
 #include <string.h> /* memset() */
 #include <stdlib.h>
 #include <time.h>
-#include "dependencies/sendto_.h"
-#include "dependencies/socket_.h"
-#include "dependencies/window_.h"
-#include "dependencies/logger_.h"
+#include "dependencies/sendto_.h"       //sendto_ override to mimick drops
+#include "dependencies/socket_.h"       //Kophs Socket functions
+#include "dependencies/window_.h"       //Kophs window obj and methods
+#include "dependencies/logger_.h"       //Kophs logger methods
 
 #define MAXBUFFSIZE 1024
 #define RWS 6
@@ -24,19 +24,19 @@ int main(int argc, char *argv[]) {
 
     int nBytes = 0;
     
-    /* Open logger*/
-    FILE *log;
-    if(!(log = fopen("serverLog.txt", "wb"))){
-        printf("Error instantiating log file\n");
-        return;
-    }
-
     /* check command line args. */
     if (argc < 6) {
         printf("usage : %s <server_port> <error rate> <random seed> <send_file> <send_log> \n", argv[0]);
-        fclose(log);
         return 1;
     }
+    
+    /* Open logger*/
+    FILE *log;
+    if(!(log = fopen(argv[5], "wb"))){
+        printf("Error instantiating log file\n");
+        return 1;
+    }
+
 
     /* Note: you must initialize the network library first before calling sendto_().  The arguments are the <errorrate> and <random seed> */
     init_net_lib(atof(argv[2]), atoi(argv[3]));
@@ -76,9 +76,9 @@ int main(int argc, char *argv[]) {
     }
     
     //Iterate through Synchronous connection:
-    int lfRead = -1;
-    int lfRecv = -1;
-    int resend = 0;
+    int lfRead = -1;            //Last frame written to file
+    int lfRecv = -1;            //Last received seq# from sender
+    int resend = 0;             //Whether or not that ACK as already been sent
     while (1) {
 
         //Wait for client to send data:
@@ -95,6 +95,7 @@ int main(int argc, char *argv[]) {
             lfRecv = atoi(strtok(NULL, " ")); //Parse sequence #
             resend = (lfRecv <= rWin->cumSeq) ? 1 : 0;
             RECVR_RECV_LOGGER(log, lfRecv, lfRead, lfRecv, rWin->min + rWin->rws);
+            
             //Copy payload (from byte 32 and on) into window:
             insertSubBuffer(rWin, lfRecv, buffer + 32, nBytes - 32);
 
@@ -125,12 +126,12 @@ int main(int argc, char *argv[]) {
                 }
             }
 
+            //Build ACK and sent back to client:
             buildHeader(ack, sizeof (ack), "ACK", 3, rWin->cumSeq, 15, rWin->rws, 28);
-
             if (sendto_(sd, ack, sizeof (ack), 0, (struct sockaddr *) &client, clientLen) < 1) {
                 LOGGER(log, "Error sending ACK\n");
             }
-            RECVR_SEND_LOGGER(log, lfRecv, lfRead, lfRecv, rWin->min + rWin->rws, resend);
+            RECVR_SEND_LOGGER(log, rWin->cumSeq, lfRead, lfRecv, rWin->min + rWin->rws, resend);
         }
     }
 

@@ -29,9 +29,9 @@ int SENDR_RECV_LOGGER(FILE *file, int seq, int lfs0, int lfs1, int lar) {
 
 int RECVR_SEND_LOGGER(FILE *file, int seq, int lfRead, int lfRecv, int laf, int resend) {
     if (resend) {
-        return LOGGER(file, "Resend Seq#: %i, lfRead: %i, lfRcvd: %i, LAF: %i, time:%i\n", seq, lfRead, lfRecv, laf, time(NULL));
+        return LOGGER(file, "Resend ACK#: %i, lfRead: %i, lfRcvd: %i, LAF: %i, time:%i\n", seq, lfRead, lfRecv, laf, time(NULL));
     } else {
-        return LOGGER(file, "Send Seq#: %i, lfRead: %i, lfRcvd: %i, LAF: %i, time:%i\n", seq, lfRead, lfRecv, laf, time(NULL));
+        return LOGGER(file, "Send ACK#: %i, lfRead: %i, lfRcvd: %i, LAF: %i, time:%i\n", seq, lfRead, lfRecv, laf, time(NULL));
     }
 }
 

@@ -1,3 +1,7 @@
+/* Author: Ryan Kophs
+ * Date: 1 Oct 2013
+ */
+
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/time.h>
@@ -12,6 +16,7 @@
 #include <signal.h>
 #include <unistd.h>
 
+//Build address space for server and client:
 struct sockaddr_in buildAddr(char * ip, char * port){
     struct sockaddr_in addr;
     bzero(&addr, sizeof (addr)); //zero the struct
@@ -21,6 +26,7 @@ struct sockaddr_in buildAddr(char * ip, char * port){
     return addr;
 }
 
+//Insert a number into a header buffer in appropriate way:
 void insertNum(char * buffer, int num, int leastSignificantPos){
     if(num == 0){
         buffer[leastSignificantPos] = '0';
@@ -40,6 +46,7 @@ void insertNum(char * buffer, int num, int leastSignificantPos){
     }
 }
 
+//Build entire buffer header:
 void buildHeader(char * buffer, int bufferSize, char * title, int titleSize, 
                  int num1 , int lSigBit1, int num2, int lSigBit2){
     memset(buffer, ' ', bufferSize);
@@ -49,6 +56,7 @@ void buildHeader(char * buffer, int bufferSize, char * title, int titleSize,
     insertNum(buffer, num2, lSigBit2);
 }
 
+//Mask a buffer with a specific char:
 void mempnset(char *buffer, char mask, int pos, int len){
     int i;
     for(i = pos; i < pos + len; i++){
